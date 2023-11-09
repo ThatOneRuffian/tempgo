@@ -10,22 +10,22 @@ import (
 )
 
 type BpmCaptureDevice struct {
-	CurrentBPM           float64
 	CurrentCaptureDevice string
 	CurrentCaptureBtn    uint16
+	AvgBPM               float64
 	keyInterval          time.Time
-	lastDelta            time.Duration
+	bpmSamples           [10]int       // bpm sample storage
+	lastDelta            time.Duration // this stores the delta between the
 }
 
 func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 	const eventSize = 24 // size of a single input event struct
 	var eventBytes [eventSize]byte
 	captureDevice.CurrentCaptureBtn = 255
+	currentSampleIndex := 0
 	runCount := 0
 	fmt.Println("Press Button to Monitor.")
-	time.Sleep(time.Second)
 	for {
-		// sample rate? max bpm?
 		_, err := file.Read(eventBytes[:])
 		if err != nil {
 			fmt.Println("Error reading from input event device:", err)
@@ -51,12 +51,21 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 				currentTime := time.Now()
 				timeDelta := currentTime.Sub(captureDevice.keyInterval)
 				bpm := 60 * time.Second / timeDelta
+				captureDevice.bpmSamples[currentSampleIndex] = int(bpm)
 				captureDevice.keyInterval = currentTime
+				avgBpm := 0
+				bpmSum := 0
+				for _, bpmSample := range captureDevice.bpmSamples {
+					bpmSum += bpmSample
+				}
+				avgBpm = bpmSum / len(captureDevice.bpmSamples)
 				terminal.ClearTerminal()
 
-				// print interface
-				fmt.Println(timeDelta)
-				fmt.Printf("Projected BPM: %d\n", bpm)
+				// print current stats
+				fmt.Println(captureDevice.bpmSamples)
+				fmt.Printf("Average BPM: %d\n", avgBpm)
+				fmt.Printf("Detected Interval: %dms\n", int(timeDelta.Milliseconds()))
+				fmt.Printf("Last Detected BPM: %d\n", bpm)
 				precision := float64(timeDelta.Milliseconds() - captureDevice.lastDelta.Milliseconds())
 				rating := ""
 
@@ -76,10 +85,15 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 					rating = "Noticable"
 				}
 
-				fmt.Printf("Precison: %s%dms\n", inputSign, int(precision))
+				fmt.Printf("Interval Offset: %s%dms\n", inputSign, int(precision))
 				fmt.Printf("Rating: %s", rating)
 
 				captureDevice.lastDelta = timeDelta
+				if currentSampleIndex+1 < len(captureDevice.bpmSamples) {
+					currentSampleIndex += 1
+				} else {
+					currentSampleIndex = 0
+				}
 			} else if eventType == 0 && eventValue == 0 { // key release event
 				fmt.Printf("Key Release: Code=%d\n", eventCode)
 			}
