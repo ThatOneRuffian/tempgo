@@ -85,7 +85,7 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 					rating = "Noticable"
 				}
 
-				fmt.Printf("Interval Offset: %s%dms\n", inputSign, int(precision))
+				fmt.Printf("Beat Offset: %s%dms\n", inputSign, int(precision))
 				fmt.Printf("Rating: %s", rating)
 
 				captureDevice.lastDelta = timeDelta
