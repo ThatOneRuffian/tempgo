@@ -13,7 +13,7 @@ type BpmCaptureDevice struct {
 	CurrentCaptureDevice string
 	CurrentCaptureBtn    uint16
 	AvgBPM               float64
-	keyInterval          time.Time
+	beatInterval         time.Time
 	bpmSamples           [10]int       // bpm sample storage
 	lastDelta            time.Duration // this stores the delta between the
 }
@@ -49,15 +49,17 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 			// check for key press and release events
 			if eventType == 1 && eventValue == 1 { // key press event
 				currentTime := time.Now()
-				timeDelta := currentTime.Sub(captureDevice.keyInterval)
+				timeDelta := currentTime.Sub(captureDevice.beatInterval)
 				bpm := 60 * time.Second / timeDelta
 				captureDevice.bpmSamples[currentSampleIndex] = int(bpm)
-				captureDevice.keyInterval = currentTime
+				captureDevice.beatInterval = currentTime
 				avgBpm := 0
 				bpmSum := 0
 				for _, bpmSample := range captureDevice.bpmSamples {
 					bpmSum += bpmSample
 				}
+				// todo can this elminate out liners?
+				// what is a good delta? 20% diff? exlude result?
 				avgBpm = bpmSum / len(captureDevice.bpmSamples)
 				terminal.ClearTerminal()
 
@@ -85,8 +87,9 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 					rating = "Noticable"
 				}
 
+				playSound(&MetronomeHiHex)
 				fmt.Printf("Beat Offset: %s%dms\n", inputSign, int(precision))
-				fmt.Printf("Rating: %s", rating)
+				fmt.Printf("Rating: %s\n", rating)
 
 				captureDevice.lastDelta = timeDelta
 				if currentSampleIndex+1 < len(captureDevice.bpmSamples) {

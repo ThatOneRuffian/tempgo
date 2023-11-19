@@ -59,18 +59,24 @@ func main() {
 	defer file.Close()
 
 	// attach monitor to input device should this be a go func
+	go tempo.StartMetronome(100, 4, 4)
 	tempo.AttachInputStream(file, &currentCapDevice)
 
-	// todo
-	// - discard outliners
-	// - average the rest, 10 total?
-	// - mode most common BPM var?
-	// - overall rating
-	// - current rating
+	// todo data
+	// - discard data outliners
+	// - overall rating variance? other stuff.
+	// - skip first run to populate the bpm?
+	// - need to be able to pass capture device into metronome maybe for recording beats?
+	//   how will this be stored?? timestamps how many etc....
+
+	/// metronome
+	// fine adjust while playing?
+	// start/stop
+	// metronome volume
+	// measure against a given BPM and give accuracy and +-
 
 	// fyne
 	// need set monitor key? can this auto detect... based on click?
 	// display BPM (ms per peak) and accurancy
 
-	// tap button or key both with the metronome and measure against a given BPM
 }
