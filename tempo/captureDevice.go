@@ -14,7 +14,7 @@ type BpmCaptureDevice struct {
 	CurrentCaptureBtn    uint16
 	AvgBPM               float64
 	beatInterval         time.Time
-	bpmSamples           [10]int       // bpm sample storage
+	bpmSamples           [10]int64     // bpm sample storage
 	lastDelta            time.Duration // this stores the delta between the
 }
 
@@ -51,21 +51,22 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 				currentTime := time.Now()
 				timeDelta := currentTime.Sub(captureDevice.beatInterval)
 				bpm := 60 * time.Second / timeDelta
-				captureDevice.bpmSamples[currentSampleIndex] = int(bpm)
+				captureDevice.bpmSamples[currentSampleIndex] = currentTime.UnixMilli()
 				captureDevice.beatInterval = currentTime
-				avgBpm := 0
-				bpmSum := 0
+				var avgBpm int64 = 0
+				var bpmSum int64 = 0
 				for _, bpmSample := range captureDevice.bpmSamples {
 					bpmSum += bpmSample
 				}
 				// todo can this elminate out liners?
 				// what is a good delta? 20% diff? exlude result?
-				avgBpm = bpmSum / len(captureDevice.bpmSamples)
+				avgBpm = bpmSum / int64(len(captureDevice.bpmSamples)) // this gives average nano seconds since unix epoch
 				terminal.ClearTerminal()
 
 				// print current stats
 				fmt.Println(captureDevice.bpmSamples)
-				fmt.Printf("Average BPM: %d\n", avgBpm)
+				//fmt.Printf("Average BPM: %d\n", time.Duration(avgBpm))
+				_ = avgBpm
 				fmt.Printf("Detected Interval: %dms\n", int(timeDelta.Milliseconds()))
 				fmt.Printf("Last Detected BPM: %d\n", bpm)
 				precision := float64(timeDelta.Milliseconds() - captureDevice.lastDelta.Milliseconds())
