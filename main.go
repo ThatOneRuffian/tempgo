@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"tempgo/tempo"
 	"tempgo/terminal"
@@ -23,13 +24,16 @@ func main() {
 	// prompt user to select input device from list
 	if len(availableDevices) > 0 {
 		for {
+			// prompt user for input
+			terminalSep := strings.Repeat("-", 90)
+			fmt.Println(terminalSep)
+			fmt.Println("Select Input Device to Monitor: ")
+			fmt.Println(terminalSep)
 			// print discovered input devices
 			for index, eventCaptureDevice := range availableDevices {
 				fmt.Printf("%d) %s\n", index, eventCaptureDevice)
 			}
 
-			// prompt user for input
-			fmt.Print("Select Input Capture Device: ")
 			_, err := fmt.Scan(&selectedCaptureIndex)
 			if err != nil {
 				fmt.Println("Error reading User Input:", err)
@@ -42,13 +46,14 @@ func main() {
 				break
 			} else {
 				terminal.ClearTerminal()
-				fmt.Println("Invalid Input Please Choose From the List Below:")
+				fmt.Println("Invalid Input Please Choose From the List Below.")
 			}
 		}
 	} else {
 		fmt.Println("No Input Capture Devices Found, Exiting.")
 		os.Exit(0)
 	}
+	// todo this input should be selected on first-run or every run or?
 
 	// open selected input device
 	file, err := os.Open(currentCapDevice.CurrentCaptureDevice)
@@ -58,25 +63,22 @@ func main() {
 	}
 	defer file.Close()
 
+	go tempo.StartMetronome(148, 4, 4)
 	// attach monitor to input device should this be a go func
-	go tempo.StartMetronome(100, 4, 4)
 	tempo.AttachInputStream(file, &currentCapDevice)
+	// - skip first run to populate the bpm? fiurst entry is 0 always (maybe have a note about samples or something...)
 
 	// todo data
-	// - discard data outliners
+	// - discard data outliners? on cap stats only metronome is a one-shot to compare to closest interval.
 	// - overall rating variance? other stuff.
-	// - skip first run to populate the bpm?
-	// - need to be able to pass capture device into metronome maybe for recording beats?
-	//   how will this be stored?? timestamps how many etc....
 
 	/// metronome
-	// fine adjust while playing?
-	// start/stop
+	// - need way to create new metronome with new BMP and timescale
+	//    - fine adjust while playing? BPM ^V
 	// metronome volume
-	// measure against a given BPM and give accuracy and +-
+	// measure against a given BPM and give accuracy and +-ms
 
 	// fyne
 	// need set monitor key? can this auto detect... based on click?
 	// display BPM (ms per peak) and accurancy
-
 }
