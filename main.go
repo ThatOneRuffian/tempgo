@@ -6,12 +6,14 @@ import (
 	"strings"
 
 	"tempgo/tempo"
-	"tempgo/terminal"
+	"tempgo/util"
 )
 
 func main() {
 	var currentCapDevice tempo.BpmCaptureDevice
 	var selectedCaptureIndex int = -1
+
+	currentCapDevice.FirstRun = true
 	availableDevices, enumErr := tempo.GetInputDevices()
 
 	if enumErr != nil {
@@ -19,7 +21,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	terminal.ClearTerminal()
+	util.ClearTerminal()
 
 	// prompt user to select input device from list
 	if len(availableDevices) > 0 {
@@ -45,7 +47,7 @@ func main() {
 				currentCapDevice.CurrentCaptureDevice = availableDevices[selectedCaptureIndex]
 				break
 			} else {
-				terminal.ClearTerminal()
+				util.ClearTerminal()
 				fmt.Println("Invalid Input Please Choose From the List Below.")
 			}
 		}
@@ -63,22 +65,22 @@ func main() {
 	}
 	defer file.Close()
 
-	go tempo.StartMetronome(148, 4, 4)
-	// attach monitor to input device should this be a go func
-	tempo.AttachInputStream(file, &currentCapDevice)
-	// - skip first run to populate the bpm? fiurst entry is 0 always (maybe have a note about samples or something...)
+	// initial metronome settings are in the metronome init func
+	go tempo.MainMetronome.StartMetronome()
+	//tempo.MainMetronome.SetMetronome(144, 4, 4)
+	//go tempo.MainMetronome.StartMetronome()
 
-	// todo data
-	// - discard data outliners? on cap stats only metronome is a one-shot to compare to closest interval.
-	// - overall rating variance? other stuff.
+	// attach monitor to input device should this be a go func? need to wait on exit sig...
+	currentCapDevice.AttachInputStream(file)
 
-	/// metronome
-	// - need way to create new metronome with new BMP and timescale
-	//    - fine adjust while playing? BPM ^V
-	// metronome volume
-	// measure against a given BPM and give accuracy and +-ms
+	// metronome
+	// needs to account for beats per quarter note
+	// .wav volume need offset and function to return byte*vol -> byte
 
 	// fyne
-	// need set monitor key? can this auto detect... based on click?
-	// display BPM (ms per peak) and accurancy
+	// need set monitor key? based on click? wizard on start-up
+	// need legit layout
+
+	// notes
+	// make note that only non-zero averages are used
 }

@@ -5,7 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"tempgo/terminal"
+	"tempgo/util"
 	"time"
 )
 
@@ -17,12 +17,13 @@ type BpmCaptureDevice struct {
 	bpmSamples           [10]int // bpm sample storage for raw tests
 	currentSampleIndex   int
 	lastDelta            time.Duration // this stores the delta between inputs
+	FirstRun             bool
 }
 
-func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
+func (cap *BpmCaptureDevice) AttachInputStream(file *os.File) {
 	const eventSize = 24 // size of a single input event struct
 	var eventBytes [eventSize]byte
-	captureDevice.CurrentCaptureBtn = 255
+	cap.CurrentCaptureBtn = 255
 	runCount := 0
 
 	fmt.Println("Press Key to Monitor.")
@@ -40,21 +41,21 @@ func AttachInputStream(file *os.File, captureDevice *BpmCaptureDevice) {
 		runCount += 1
 
 		// set input monitor button
-		if captureDevice.CurrentCaptureBtn == 255 && eventCode != 4 {
-			if runCount >= 4 { // have to filter the first few reads before accepting user input for cli
-				captureDevice.CurrentCaptureBtn = eventCode
-				terminal.ClearTerminal()
+		if cap.CurrentCaptureBtn == 255 && eventCode != 4 {
+			if runCount >= 4 { // filter the first few reads before accepting user input for cli
+				cap.CurrentCaptureBtn = eventCode
+				util.ClearTerminal()
 			}
 		}
 
-		if eventCode == captureDevice.CurrentCaptureBtn {
+		if eventCode == cap.CurrentCaptureBtn {
 			// check for key press and release events
 			if eventType == 1 && eventValue == 1 { // key press event
 				// send input timestamp to metronome
 				MainMetronome.inputCompare.inputSignalTime <- time.Now()
-				go printStats(captureDevice)
+				go cap.printStats()
 			} else if eventType == 0 && eventValue == 0 { // key release event
-				fmt.Printf("Key Release: Code=%d\n", eventCode)
+				//fmt.Printf("Key Release: Code=%d\n", eventCode)
 			}
 		}
 	}
@@ -72,24 +73,29 @@ func GetInputDevices() ([]string, error) {
 	return devicePaths, nil
 }
 
-func printStats(captureDevice *BpmCaptureDevice) {
+func (cap *BpmCaptureDevice) printStats() {
 	currentTime := time.Now()
-	timeDelta := currentTime.Sub(captureDevice.beatInterval)
+	timeDelta := currentTime.Sub(cap.beatInterval)
 	bpm := 60 * time.Second / timeDelta
-	captureDevice.bpmSamples[captureDevice.currentSampleIndex] = int(bpm)
-	captureDevice.beatInterval = currentTime
+	//todo need to skip this using a first run flag or something - this can also be handled at the end of the loop?
+	cap.bpmSamples[cap.currentSampleIndex] = int(bpm)
+	cap.beatInterval = currentTime
 	avgBpm := 0
 	bpmSum := 0
-	for _, bpmSample := range captureDevice.bpmSamples {
-		bpmSum += bpmSample
+	zeroCount := 0
+	for _, bpmSample := range cap.bpmSamples {
+		if bpmSample != 0 {
+			bpmSum += bpmSample
+		} else {
+			zeroCount += 1
+		}
 	}
 
-	// what is a good delta? 20% diff? exlude result?
-	avgBpm = bpmSum / len(captureDevice.bpmSamples) // this gives average nano seconds since unix epoch
+	if bpmSum > 0 {
+		avgBpm = bpmSum / (len(cap.bpmSamples) - zeroCount)
+	}
 
-	// todo need to put stats from MainMetronome
-
-	precision := float64(timeDelta.Milliseconds() - captureDevice.lastDelta.Milliseconds())
+	precision := float64(timeDelta.Milliseconds() - cap.lastDelta.Milliseconds())
 
 	// determine if the input was early or late
 	inputSign := "+"
@@ -99,27 +105,41 @@ func printStats(captureDevice *BpmCaptureDevice) {
 	precision = math.Abs(precision)
 
 	// print current raw input stats
-	terminal.ClearTerminal()
-	fmt.Println(captureDevice.bpmSamples)
+	util.ClearTerminal()
+	fmt.Println(cap.bpmSamples)
 	fmt.Println("===========================================================================")
 	fmt.Printf("Average BPM: %d\n", time.Duration(avgBpm))
 	fmt.Printf("Detected Interval: %dms\n", int(timeDelta.Milliseconds()))
 	fmt.Printf("Last Detected BPM: %d\n", bpm)
 	fmt.Printf("Detected Beat Offset: %s%dms\n", inputSign, int(precision))
-	fmt.Printf("Rating: %s\n", CalculateInputRating(int64(precision)))
+	fmt.Printf("Overall Rating (Coefficient of Variation): +/-%.1f BPM\n", calculateStandardDeviation(cap.bpmSamples, avgBpm))
+	fmt.Printf("Interval Rating: %s\n", CalculateInputRating(int64(precision)))
 
 	// print metronome compare stats
 	fmt.Println("===========================================================================")
 	fmt.Println("Metronome Stats:")
-	fmt.Printf("Current BPM is: %d BPM\n", MainMetronome.currentBpm)
-	fmt.Printf("Current Beat Interval is: %dms\n", int(60000.0/float64(MainMetronome.currentBpm)))
+	fmt.Printf("Current BPM is: %d BPM\n", MainMetronome.CurrentTempo)
+	fmt.Printf("Current Beat Interval is: %dms\n", int(60000.0/float64(MainMetronome.CurrentTempo)))
 	fmt.Printf("Interval Compare Result: %s%dms\n", MainMetronome.inputCompare.inputOffsetSign, MainMetronome.inputCompare.inputOffset)
 	fmt.Printf("Metronome Rating: %s\n", CalculateInputRating(MainMetronome.inputCompare.inputOffset))
 
-	captureDevice.lastDelta = timeDelta
-	if captureDevice.currentSampleIndex+1 < len(captureDevice.bpmSamples) {
-		captureDevice.currentSampleIndex += 1
+	cap.lastDelta = timeDelta
+	if cap.currentSampleIndex+1 < len(cap.bpmSamples) && !cap.FirstRun {
+		cap.currentSampleIndex += 1
 	} else {
-		captureDevice.currentSampleIndex = 0
+		cap.currentSampleIndex = 0
 	}
+	cap.FirstRun = false
+}
+
+func calculateStandardDeviation(data [10]int, mean int) float64 {
+	sumSquaredDiff := 0.0
+	for _, value := range data {
+		if value != 0 {
+			diff := value - mean
+			sumSquaredDiff += float64(diff * diff)
+		}
+	}
+	variance := sumSquaredDiff / float64(len(data)-1)
+	return math.Sqrt(variance)
 }
