@@ -93,10 +93,10 @@ func (m *metronome) StartMetronome() {
 			if m.isPlaying {
 				lastTickTime = tickTime
 				if current_count%m.beatsPerMeasure == 0 {
-					go playSound(&MetronomeHiHex)
+					go playSound(MetronomeHiHex)
 					current_count = 0
 				} else {
-					go playSound(&MetronomeLowHex)
+					go playSound(MetronomeLowHex)
 				}
 				current_count += 1
 			} else {
@@ -137,7 +137,7 @@ func (m *metronome) SetMetronome(targetTempo int, beatsPerMeasure int, quarterNo
 	m.quarterNoteBeats = quarterNoteBeats
 }
 
-func playSound(soundData *[]byte) {
+func playSound(soundData []byte) {
 
 	// create a pipe to connect the commands.
 	pr, pw := io.Pipe()
@@ -162,7 +162,7 @@ func playSound(soundData *[]byte) {
 	}
 
 	// write the raw audio data to pipe
-	_, err = pw.Write(*soundData)
+	_, err = pw.Write(soundData)
 	if err != nil {
 		fmt.Println("Error writing to pipe:", err)
 		return
@@ -175,7 +175,7 @@ func playSound(soundData *[]byte) {
 	err = cmd.Wait()
 	if err != nil {
 		// Print the error message.
-		fmt.Println("Error waiting for aplay to execute:", err)
+		fmt.Println("Error attempting to play sound via aplay:", err)
 		return
 	}
 }

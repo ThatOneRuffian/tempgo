@@ -6,12 +6,6 @@ import (
 	"os/exec"
 )
 
-func AdjustWavVolume(wavData []byte) []byte {
-	var newWaveData []byte
-
-	return newWaveData
-}
-
 func ClearTerminal() {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout

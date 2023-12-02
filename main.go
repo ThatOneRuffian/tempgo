@@ -73,13 +73,13 @@ func main() {
 	// attach monitor to input device should this be a go func? need to wait on exit sig...
 	currentCapDevice.AttachInputStream(file)
 
-	// metronome
-	// needs to account for beats per quarter note
-	// .wav volume need offset and function to return byte*vol -> byte
-
 	// fyne
 	// need set monitor key? based on click? wizard on start-up
 	// need legit layout
+
+	// todo need another way to give user permission to input without allowing all userspace to access
+	// todo needs to account for beats per quarter note - needs research...?
+	// todo tick volume?
 
 	// notes
 	// make note that only non-zero averages are used
