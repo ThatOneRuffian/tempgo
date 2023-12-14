@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
+	"tempgo/gui"
 	"tempgo/util"
 	"time"
 )
@@ -61,18 +61,6 @@ func (cap *BpmCaptureDevice) AttachInputStream(file *os.File) {
 	}
 }
 
-func GetInputDevices() ([]string, error) {
-	dir := "/dev/input/by-id/"
-	pattern := "*event*"
-
-	devicePaths, err := filepath.Glob(filepath.Join(dir, pattern))
-	if err != nil {
-		return nil, err
-	}
-
-	return devicePaths, nil
-}
-
 func (cap *BpmCaptureDevice) printStats() {
 	currentTime := time.Now()
 	timeDelta := currentTime.Sub(cap.beatInterval)
@@ -104,16 +92,21 @@ func (cap *BpmCaptureDevice) printStats() {
 	}
 	precision = math.Abs(precision)
 
+	detectedInterval := int(timeDelta.Milliseconds())
+	currentRawRating := CalculateInputRating(int64(precision))
+
+	cov := calculateStandardDeviation(cap.bpmSamples, avgBpm) / float64(avgBpm)
+
 	// print current raw input stats
 	util.ClearTerminal()
 	fmt.Println(cap.bpmSamples)
 	fmt.Println("===========================================================================")
-	fmt.Printf("Average BPM: %d\n", time.Duration(avgBpm))
-	fmt.Printf("Detected Interval: %dms\n", int(timeDelta.Milliseconds()))
+	fmt.Printf("Average BPM: %d\n", avgBpm)
+	fmt.Printf("Detected Interval: %dms\n", detectedInterval)
 	fmt.Printf("Last Detected BPM: %d\n", bpm)
 	fmt.Printf("Detected Beat Offset: %s%dms\n", inputSign, int(precision))
-	fmt.Printf("Overall Rating (Coefficient of Variation): +/-%.1f BPM\n", calculateStandardDeviation(cap.bpmSamples, avgBpm))
-	fmt.Printf("Interval Rating: %s\n", CalculateInputRating(int64(precision)))
+	fmt.Printf("Overall Rating (Coefficient of Variation): +/-%.1f BPM\n", cov)
+	fmt.Printf("Interval Rating: %s\n", currentRawRating)
 
 	// print metronome compare stats
 	fmt.Println("===========================================================================")
@@ -123,6 +116,19 @@ func (cap *BpmCaptureDevice) printStats() {
 	fmt.Printf("Interval Compare Result: %s%dms\n", MainMetronome.inputCompare.inputOffsetSign, MainMetronome.inputCompare.inputOffset)
 	fmt.Printf("Metronome Rating: %s\n", CalculateInputRating(MainMetronome.inputCompare.inputOffset))
 
+	var inputOffset string
+	if MainMetronome.isPlaying {
+		inputOffset = fmt.Sprintf("%s%dms", MainMetronome.inputCompare.inputOffsetSign, MainMetronome.inputCompare.inputOffset)
+	} else {
+		inputOffset = "Start Metronome to Begin"
+	}
+	gui.TempgoStatData.RawInputArrayCV.Set(fmt.Sprint(cov))
+	gui.TempgoStatData.MetronomeInputOffset.Set(inputOffset)
+	gui.TempgoStatData.RawInputArray.Set(gui.IntArrayToString(cap.bpmSamples))
+	gui.TempgoStatData.AverageBPM.Set(fmt.Sprintf("%d BPM", avgBpm))
+	gui.TempgoStatData.DetectedInterval.Set(fmt.Sprintf("%sms", fmt.Sprint(detectedInterval)))
+	gui.TempgoStatData.MetronomeCurrentBPM.Set(fmt.Sprint(MainMetronome.CurrentTempo))
+	gui.TempgoStatData.IntervalRating.Set(currentRawRating)
 	cap.lastDelta = timeDelta
 	if cap.currentSampleIndex+1 < len(cap.bpmSamples) && !cap.FirstRun {
 		cap.currentSampleIndex += 1

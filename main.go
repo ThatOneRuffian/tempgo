@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"tempgo/gui"
 	"tempgo/tempo"
 	"tempgo/util"
 )
@@ -14,7 +15,7 @@ func main() {
 	var selectedCaptureIndex int = -1
 
 	currentCapDevice.FirstRun = true
-	availableDevices, enumErr := tempo.GetInputDevices()
+	availableDevices, enumErr := util.GetInputDevices()
 
 	if enumErr != nil {
 		fmt.Println("Could Not Enumerate Input Devices.")
@@ -55,7 +56,6 @@ func main() {
 		fmt.Println("No Input Capture Devices Found, Exiting.")
 		os.Exit(0)
 	}
-	// todo this input should be selected on first-run or every run or?
 
 	// open selected input device
 	file, err := os.Open(currentCapDevice.CurrentCaptureDevice)
@@ -67,19 +67,16 @@ func main() {
 
 	// initial metronome settings are in the metronome init func
 	go tempo.MainMetronome.StartMetronome()
-	//tempo.MainMetronome.SetMetronome(144, 4, 4)
-	//go tempo.MainMetronome.StartMetronome()
 
-	// attach monitor to input device should this be a go func? need to wait on exit sig...
-	currentCapDevice.AttachInputStream(file)
+	// todo determine if running in cli mode or not and allow the proper selection
+	go currentCapDevice.AttachInputStream(file)
+	gui.TempgoFyneApp.FyneWindow.ShowAndRun()
 
-	// fyne
-	// need set monitor key? based on click? wizard on start-up
-	// need legit layout
-
+	// time consuming but possible features
 	// todo need another way to give user permission to input without allowing all userspace to access
-	// todo needs to account for beats per quarter note - needs research...?
-	// todo tick volume?
+
+	// todo
+	// need to embed images into app
 
 	// notes
 	// make note that only non-zero averages are used

@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
+	"tempgo/gui"
 	"tempgo/util"
 	"time"
 )
@@ -13,13 +15,11 @@ import (
 // this shoud store the last or hmmm need a way to measure all this stuff
 
 type metronome struct {
-	CurrentTempo     int
-	currentVolume    int // control metronome volume - should be float need func to perform calc
-	isPlaying        bool
-	StopSignal       chan bool
-	beatsPerMeasure  int
-	quarterNoteBeats int
-	inputCompare     inputCompare
+	CurrentTempo    int
+	isPlaying       bool
+	StopSignal      chan bool
+	beatsPerMeasure int
+	inputCompare    inputCompare
 }
 
 type inputCompare struct {
@@ -52,11 +52,13 @@ func init() {
 	}
 
 	// initalize main metronome
-	MainMetronome.currentVolume = 100
 	MainMetronome.beatsPerMeasure = 4
-	MainMetronome.quarterNoteBeats = 4
+	gui.TempgoStatData.MetronomeBeatsPerMeasure.Set(fmt.Sprint(MainMetronome.beatsPerMeasure))
 	MainMetronome.CurrentTempo = 77
-	MainMetronome.isPlaying = true
+	gui.TempgoStatData.MetronomeCurrentBPM.Set(fmt.Sprintf("%d BPM", MainMetronome.CurrentTempo))
+	gui.TempgoStatData.MetronomeBeatInterval.Set(fmt.Sprintf(" %.0fms", 60_000.0/float32(MainMetronome.CurrentTempo)))
+
+	MainMetronome.isPlaying = false
 	MainMetronome.StopSignal = make(chan bool)
 	MainMetronome.inputCompare.inputSignalTime = make(chan time.Time)
 
@@ -68,59 +70,109 @@ func init() {
 
 func (m *metronome) StartMetronome() {
 	var lastTickTime time.Time
-	var nextTickTime int64
-	var halfInterval int64
 
 	// set tick rate
 	nanoSeconds := 1e9 * 60 / m.CurrentTempo // convert bpm to ns
 	tickRate := time.Duration(nanoSeconds)
-	current_count := 0
+	currentCount := 0
 
 	// create new ticker
-	_ = m.quarterNoteBeats // this need to be taken into account later...?
-	m.isPlaying = true
-
 	ticker := time.NewTicker(tickRate)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-MainMetronome.StopSignal:
+		// metronome play btn
+		case <-gui.TempgoFyneApp.PlayMetronomeChan:
+			// play metronome starting from first count of metronome on click
+			lastTickTime = time.Now()
+			go playSound(MetronomeHiHex)
+			ticker.Reset(tickRate)
+			m.isPlaying = true
+			currentCount = 1
+		// metronome pause btn
+		case <-gui.TempgoFyneApp.PauseMetronomeChan:
+			m.isPlaying = false
+		case <-m.StopSignal:
 			fmt.Println("Stop Signal Receive. Shutting Down Metronome.")
 			ticker.Stop()
-			return
+			break
+		case <-gui.TempgoFyneApp.UpdateMetronomeChan:
+			fmt.Println("Metronome Updated")
+			// need to set the tickrate
+
+			newBeatsPerMeasureStr, beatErr := gui.TempgoStatData.NewBeatsPerMeasureFieldVal.Get()
+			if beatErr != nil {
+				continue
+			}
+
+			newTempoStr, tempoErr := gui.TempgoStatData.NewTempoFieldVal.Get()
+			if tempoErr != nil {
+				continue
+			}
+
+			// test for int-ness
+			newBeatsPerMeasure, beatConvErr := strconv.Atoi(newBeatsPerMeasureStr)
+			if beatConvErr != nil {
+				// user must enter a valid beat per measure
+			}
+
+			newTempo, tempoConvErr := strconv.Atoi(newTempoStr)
+			if tempoConvErr != nil {
+				// user must enter valid tempo
+			}
+
+			// set new beats per measure
+			if newBeatsPerMeasure > 0 && newTempo > 0 {
+				m.CurrentTempo = newTempo
+				m.beatsPerMeasure = newBeatsPerMeasure
+				gui.TempgoStatData.MetronomeBeatsPerMeasure.Set(fmt.Sprint(newBeatsPerMeasure))
+				gui.TempgoStatData.MetronomeCurrentBPM.Set(fmt.Sprint(newTempo))
+				gui.TempgoStatData.MetronomeBeatInterval.Set(fmt.Sprintf(" %.0fms", 60_000.0/float32(newTempo)))
+
+				// need to update GUI for latest metronome settings
+				ticker.Stop()
+				m.StartMetronome()
+				break
+			} else {
+				// craft custom dialog message
+				// BPM must be larger than 0
+				// tempo much be larger than 0
+				// cannot set invalid settings, try again
+			}
+
 		case tickTime := <-ticker.C:
 			if m.isPlaying {
 				lastTickTime = tickTime
-				if current_count%m.beatsPerMeasure == 0 {
+
+				if currentCount%m.beatsPerMeasure == 0 {
 					go playSound(MetronomeHiHex)
-					current_count = 0
+					currentCount = 0
 				} else {
 					go playSound(MetronomeLowHex)
 				}
-				current_count += 1
+				currentCount += 1
 			} else {
-				current_count = 0 //reset to the count-of-one
+				currentCount = 0 //reset to the count-of-one
+			}
+		// external input signal
+		case inputSig := <-m.inputCompare.inputSignalTime:
+			m.calculateInputDelta(tickRate, inputSig, lastTickTime)
+			if m.isPlaying {
+				gui.TempgoStatData.OverallRatingString.Set(CalculateInputRating(m.inputCompare.inputOffset))
+			} else {
+				gui.TempgoStatData.OverallRatingString.Set("Start Metronome to Begin")
 			}
 
-		// todo max error cannot be larger than max interval - add more? via multiples maybe nX
-		case inputSig := <-MainMetronome.inputCompare.inputSignalTime:
-			// calculate deltas
-			nextTickTime = (tickRate - inputSig.Sub(lastTickTime)).Milliseconds()
-			if nextTickTime > 0 {
-				halfInterval = tickRate.Milliseconds() / 2
-				if nextTickTime >= halfInterval {
-					nextTickTime = tickRate.Milliseconds() - nextTickTime
-					MainMetronome.inputCompare.inputOffsetSign = "-"
-				} else {
-					MainMetronome.inputCompare.inputOffsetSign = "+"
-				}
-				MainMetronome.inputCompare.inputOffset = nextTickTime
+		// gui input signal
+		case guiBtnInputSig := <-gui.TempgoFyneApp.InputChan:
+			m.calculateInputDelta(tickRate, guiBtnInputSig, lastTickTime)
+			if m.isPlaying {
+				gui.TempgoStatData.OverallRatingString.Set(CalculateInputRating(m.inputCompare.inputOffset))
+			} else {
+				gui.TempgoStatData.OverallRatingString.Set("Start Metronome to Begin")
 			}
-
-			// todo
-			//  -- user can set the mode of which note timestamp they're trying to get? or detect?
-			// 1/4th, 1/8th, and 1/16th
+			fmt.Println("hey")
 		}
 	}
 }
@@ -130,11 +182,11 @@ func (m *metronome) StopMetronome() {
 	m.isPlaying = false
 }
 
-func (m *metronome) SetMetronome(targetTempo int, beatsPerMeasure int, quarterNoteBeats int) {
+func (m *metronome) SetMetronome(targetTempo int, beatsPerMeasure int) {
+	// todo can I use a channel to just reste the tempo using ticker.reset()
 	m.StopMetronome()
 	m.CurrentTempo = targetTempo
 	m.beatsPerMeasure = beatsPerMeasure
-	m.quarterNoteBeats = quarterNoteBeats
 }
 
 func playSound(soundData []byte) {
@@ -177,6 +229,22 @@ func playSound(soundData []byte) {
 		// Print the error message.
 		fmt.Println("Error attempting to play sound via aplay:", err)
 		return
+	}
+}
+
+// todo max error cannot be larger than max interval - add more? via multiples maybe nX
+func (m *metronome) calculateInputDelta(tickRate time.Duration, inputTime time.Time, lastInputTime time.Time) {
+	// calculate deltas between input and metronome. Save results into the metronome struct
+	nextTickTime := (tickRate - inputTime.Sub(lastInputTime)).Milliseconds()
+	if nextTickTime > 0 {
+		halfInterval := tickRate.Milliseconds() / 2
+		if nextTickTime >= halfInterval {
+			nextTickTime = tickRate.Milliseconds() - nextTickTime
+			m.inputCompare.inputOffsetSign = "-"
+		} else {
+			m.inputCompare.inputOffsetSign = "+"
+		}
+		m.inputCompare.inputOffset = nextTickTime
 	}
 }
 

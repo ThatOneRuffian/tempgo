@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 func ClearTerminal() {
@@ -19,4 +20,16 @@ func CheckCommandExists(name string) bool {
 		return false
 	}
 	return true
+}
+
+func GetInputDevices() ([]string, error) {
+	dir := "/dev/input/by-id/"
+	pattern := "*event*"
+
+	devicePaths, err := filepath.Glob(filepath.Join(dir, pattern))
+	if err != nil {
+		return nil, err
+	}
+
+	return devicePaths, nil
 }
