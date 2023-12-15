@@ -19,7 +19,7 @@ import (
 
 type metronomeGUI struct {
 	fyneTitle           string
-	InputChan           chan time.Time // input for GUI tempo button
+	InputChanTime       chan time.Time // input for GUI tempo button
 	PlayMetronomeChan   chan bool
 	PauseMetronomeChan  chan bool
 	UpdateMetronomeChan chan bool
@@ -54,7 +54,7 @@ var TempgoStatData metronomeStats
 func init() {
 	//init tempgo window elements
 	TempgoFyneApp.fyneTitle = "Tempgo"
-	TempgoFyneApp.InputChan = make(chan time.Time)
+	TempgoFyneApp.InputChanTime = make(chan time.Time)
 	TempgoFyneApp.PlayMetronomeChan = make(chan bool)
 	TempgoFyneApp.PauseMetronomeChan = make(chan bool)
 	TempgoFyneApp.UpdateMetronomeChan = make(chan bool)
@@ -88,7 +88,7 @@ func init() {
 
 	// init gui buttons
 	TempgoFyneApp.tempoInputBtn = widget.NewButtonWithIcon("", btnIcon, func() {
-		TempgoFyneApp.InputChan <- time.Now()
+		TempgoFyneApp.InputChanTime <- time.Now()
 	})
 
 	TempgoFyneApp.metronomePlayBtn = widget.NewButtonWithIcon("", playIcon, func() {

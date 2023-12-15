@@ -56,7 +56,7 @@ func main() {
 		fmt.Println("No Input Capture Devices Found, Exiting.")
 		os.Exit(0)
 	}
-
+	// todo determine if running in cli mode or not and allow the proper selection
 	// open selected input device
 	file, err := os.Open(currentCapDevice.CurrentCaptureDevice)
 	if err != nil {
@@ -68,7 +68,6 @@ func main() {
 	// initial metronome settings are in the metronome init func
 	go tempo.MainMetronome.StartMetronome()
 
-	// todo determine if running in cli mode or not and allow the proper selection
 	go currentCapDevice.AttachInputStream(file)
 	gui.TempgoFyneApp.FyneWindow.ShowAndRun()
 

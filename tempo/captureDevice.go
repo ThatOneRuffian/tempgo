@@ -27,6 +27,35 @@ func (cap *BpmCaptureDevice) AttachInputStream(file *os.File) {
 	runCount := 0
 
 	fmt.Println("Press Key to Monitor.")
+	// todo attach gui button to input stream so I can proc the print to proc the GUI
+	nanoSeconds := 1e9 * 60 / MainMetronome.CurrentTempo // convert bpm to ns
+	tickRate := time.Duration(nanoSeconds)
+
+	// listen for gui and external input signals
+	go func() {
+		for {
+			select {
+			// external input signal
+			case inputSig := <-MainMetronome.inputCompare.inputSignalTime:
+				MainMetronome.calculateInputDelta(tickRate, inputSig, MainMetronome.LastTickTime)
+				if MainMetronome.isPlaying {
+					gui.TempgoStatData.OverallRatingString.Set(CalculateInputRating(MainMetronome.inputCompare.inputOffset))
+				} else {
+					gui.TempgoStatData.OverallRatingString.Set("Start Metronome to Begin")
+				}
+			// gui input signal
+			case guiBtnInputSig := <-gui.TempgoFyneApp.InputChanTime:
+				MainMetronome.calculateInputDelta(tickRate, guiBtnInputSig, MainMetronome.LastTickTime)
+				if MainMetronome.isPlaying {
+					gui.TempgoStatData.OverallRatingString.Set(CalculateInputRating(MainMetronome.inputCompare.inputOffset))
+				} else {
+					gui.TempgoStatData.OverallRatingString.Set("Start Metronome to Begin")
+				}
+				go cap.PrintStats()
+			}
+		}
+	}()
+
 	for {
 		_, err := file.Read(eventBytes[:])
 		if err != nil {
@@ -53,7 +82,7 @@ func (cap *BpmCaptureDevice) AttachInputStream(file *os.File) {
 			if eventType == 1 && eventValue == 1 { // key press event
 				// send input timestamp to metronome
 				MainMetronome.inputCompare.inputSignalTime <- time.Now()
-				go cap.printStats()
+				go cap.PrintStats()
 			} else if eventType == 0 && eventValue == 0 { // key release event
 				//fmt.Printf("Key Release: Code=%d\n", eventCode)
 			}
@@ -61,11 +90,10 @@ func (cap *BpmCaptureDevice) AttachInputStream(file *os.File) {
 	}
 }
 
-func (cap *BpmCaptureDevice) printStats() {
+func (cap *BpmCaptureDevice) PrintStats() {
 	currentTime := time.Now()
 	timeDelta := currentTime.Sub(cap.beatInterval)
 	bpm := 60 * time.Second / timeDelta
-	//todo need to skip this using a first run flag or something - this can also be handled at the end of the loop?
 	cap.bpmSamples[cap.currentSampleIndex] = int(bpm)
 	cap.beatInterval = currentTime
 	avgBpm := 0
@@ -122,7 +150,7 @@ func (cap *BpmCaptureDevice) printStats() {
 	} else {
 		inputOffset = "Start Metronome to Begin"
 	}
-	gui.TempgoStatData.RawInputArrayCV.Set(fmt.Sprint(cov))
+	gui.TempgoStatData.RawInputArrayCV.Set(fmt.Sprintf("%.3f", cov))
 	gui.TempgoStatData.MetronomeInputOffset.Set(inputOffset)
 	gui.TempgoStatData.RawInputArray.Set(gui.IntArrayToString(cap.bpmSamples))
 	gui.TempgoStatData.AverageBPM.Set(fmt.Sprintf("%d BPM", avgBpm))

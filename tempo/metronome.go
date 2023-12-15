@@ -20,6 +20,7 @@ type metronome struct {
 	StopSignal      chan bool
 	beatsPerMeasure int
 	inputCompare    inputCompare
+	LastTickTime    time.Time
 }
 
 type inputCompare struct {
@@ -69,8 +70,6 @@ func init() {
 }
 
 func (m *metronome) StartMetronome() {
-	var lastTickTime time.Time
-
 	// set tick rate
 	nanoSeconds := 1e9 * 60 / m.CurrentTempo // convert bpm to ns
 	tickRate := time.Duration(nanoSeconds)
@@ -85,7 +84,6 @@ func (m *metronome) StartMetronome() {
 		// metronome play btn
 		case <-gui.TempgoFyneApp.PlayMetronomeChan:
 			// play metronome starting from first count of metronome on click
-			lastTickTime = time.Now()
 			go playSound(MetronomeHiHex)
 			ticker.Reset(tickRate)
 			m.isPlaying = true
@@ -141,10 +139,8 @@ func (m *metronome) StartMetronome() {
 				// cannot set invalid settings, try again
 			}
 
-		case tickTime := <-ticker.C:
+		case m.LastTickTime = <-ticker.C:
 			if m.isPlaying {
-				lastTickTime = tickTime
-
 				if currentCount%m.beatsPerMeasure == 0 {
 					go playSound(MetronomeHiHex)
 					currentCount = 0
@@ -155,24 +151,6 @@ func (m *metronome) StartMetronome() {
 			} else {
 				currentCount = 0 //reset to the count-of-one
 			}
-		// external input signal
-		case inputSig := <-m.inputCompare.inputSignalTime:
-			m.calculateInputDelta(tickRate, inputSig, lastTickTime)
-			if m.isPlaying {
-				gui.TempgoStatData.OverallRatingString.Set(CalculateInputRating(m.inputCompare.inputOffset))
-			} else {
-				gui.TempgoStatData.OverallRatingString.Set("Start Metronome to Begin")
-			}
-
-		// gui input signal
-		case guiBtnInputSig := <-gui.TempgoFyneApp.InputChan:
-			m.calculateInputDelta(tickRate, guiBtnInputSig, lastTickTime)
-			if m.isPlaying {
-				gui.TempgoStatData.OverallRatingString.Set(CalculateInputRating(m.inputCompare.inputOffset))
-			} else {
-				gui.TempgoStatData.OverallRatingString.Set("Start Metronome to Begin")
-			}
-			fmt.Println("hey")
 		}
 	}
 }
