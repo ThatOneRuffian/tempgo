@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
@@ -61,6 +62,26 @@ func init() {
 	TempgoFyneApp.fyneApp = app.New()
 	TempgoFyneApp.FyneWindow = TempgoFyneApp.fyneApp.NewWindow(TempgoFyneApp.fyneTitle)
 
+	// create taskbar icon
+	if desk, ok := TempgoFyneApp.fyneApp.(desktop.App); ok {
+		trayIcon, err := fyne.LoadResourceFromPath("./resources/quarter_note.png")
+		if err != nil {
+			fmt.Println("Could not load tray icon")
+		} else {
+			TempgoFyneApp.fyneApp.SetIcon(trayIcon)
+		}
+
+		m := fyne.NewMenu("MyApp",
+			fyne.NewMenuItem("Show", func() {
+				TempgoFyneApp.FyneWindow.Show()
+			}))
+		desk.SetSystemTrayMenu(m)
+	}
+
+	TempgoFyneApp.FyneWindow.SetCloseIntercept(func() {
+		TempgoFyneApp.FyneWindow.Hide()
+	})
+
 	//todo need to query capture devices to populate this list and then add a selection event
 	availableInputDevs, err := util.GetInputDevices()
 	if err != nil {
@@ -68,6 +89,8 @@ func init() {
 	}
 	inputDevSelect := widget.NewSelect(availableInputDevs, func(value string) {
 		log.Println("Select set to", value)
+		// todo close device if open and oepn a new
+		// todo this should open the stream and lunch new go currentCapDevice.AttachInputStream(file)
 	})
 
 	// allocate button resources
