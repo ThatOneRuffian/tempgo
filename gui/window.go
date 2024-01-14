@@ -3,7 +3,6 @@ package gui
 import (
 	"fmt"
 	"image/color"
-	"log"
 	"strconv"
 	"tempgo/util"
 	"time"
@@ -24,14 +23,14 @@ type metronomeGUI struct {
 	PlayMetronomeChan   chan bool
 	PauseMetronomeChan  chan bool
 	UpdateMetronomeChan chan bool
+	UpdateInputDevChan  chan string
 	fyneApp             fyne.App
 	FyneWindow          fyne.Window
-	inputDropdown       fyne.Widget
 	tempoInputBtn       fyne.Widget
+	inputDevSelect      fyne.Widget
 	metronomePlayBtn    fyne.Widget
 	metronomePauseBtn   fyne.Widget
 	metronomeUpdateBtn  fyne.Widget
-	inputDevSelect      fyne.Widget
 }
 
 type metronomeStats struct {
@@ -59,7 +58,8 @@ func init() {
 	TempgoFyneApp.PlayMetronomeChan = make(chan bool)
 	TempgoFyneApp.PauseMetronomeChan = make(chan bool)
 	TempgoFyneApp.UpdateMetronomeChan = make(chan bool)
-	TempgoFyneApp.fyneApp = app.New()
+	TempgoFyneApp.UpdateInputDevChan = make(chan string)
+	TempgoFyneApp.fyneApp = app.NewWithID("tempgo-v0.1.0")
 	TempgoFyneApp.FyneWindow = TempgoFyneApp.fyneApp.NewWindow(TempgoFyneApp.fyneTitle)
 
 	// create taskbar icon
@@ -71,7 +71,7 @@ func init() {
 			TempgoFyneApp.fyneApp.SetIcon(trayIcon)
 		}
 
-		m := fyne.NewMenu("MyApp",
+		m := fyne.NewMenu("Tempgo",
 			fyne.NewMenuItem("Show", func() {
 				TempgoFyneApp.FyneWindow.Show()
 			}))
@@ -87,10 +87,9 @@ func init() {
 	if err != nil {
 		fmt.Println("Could Not Query Input Devices.")
 	}
+
 	inputDevSelect := widget.NewSelect(availableInputDevs, func(value string) {
-		log.Println("Select set to", value)
-		// todo close device if open and oepn a new
-		// todo this should open the stream and lunch new go currentCapDevice.AttachInputStream(file)
+		TempgoFyneApp.UpdateInputDevChan <- value
 	})
 
 	// allocate button resources
@@ -203,6 +202,7 @@ func init() {
 	windowContainer := container.NewGridWithColumns(2, inputAreaContainer, metronomeContainer)
 	TempgoFyneApp.FyneWindow.SetContent(windowContainer)
 	TempgoFyneApp.FyneWindow.Resize(fyne.NewSize(100, 100))
+
 }
 
 func IntArrayToString(intArray [10]int) string {
