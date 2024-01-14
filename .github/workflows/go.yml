@@ -20,9 +20,9 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.21.2'
-
+      
     - name: Build
-      run: go get && go build -v ./...
+      run: go get && apt install libxcursor-dev && go build -v ./...
 
     - name: Test
       run: go test -v ./...
