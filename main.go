@@ -15,8 +15,7 @@ func init() {
 }
 
 func main() {
-	tempo.CreateNewCaptureDev()
-
+	tempo.CreateNewDevMonitor()
 	gui.TempgoFyneApp.FyneWindow.ShowAndRun()
 
 	// time consuming but possible features
