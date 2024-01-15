@@ -23,11 +23,11 @@ type BpmCaptureDevice struct {
 	FirstRun             bool
 }
 
-func CreateNewCaptureDev() *BpmCaptureDevice {
+func CreateNewDevMonitor() *BpmCaptureDevice {
 	var newCapDev BpmCaptureDevice
 	newCapDev.FirstRun = true
 	go newCapDev.StartInputEventListeners()
-	go newCapDev.AttachInputStream()
+	go newCapDev.attachInputStream()
 	return &newCapDev
 }
 
@@ -62,26 +62,27 @@ func (cap *BpmCaptureDevice) StartInputEventListeners() {
 	}()
 }
 
-func (cap *BpmCaptureDevice) AttachInputStream() {
+func (cap *BpmCaptureDevice) attachInputStream() {
 
 	var monitoring bool
 	var capDevFile *os.File
-	stopSignal := make(chan bool)
+	stopSignal := make(chan bool, 1)
 	go func() {
 		for {
 			select {
 			case inputDevice := <-gui.TempgoFyneApp.UpdateInputDevChan:
-				fmt.Println("got channel info", inputDevice)
-
 				// close current device if open and not same
 				if capDevFile != nil {
-					if inputDevice != capDevFile.Name() {
+					// stop current monitoring loops
+					if monitoring {
+						monitoring = false
+						stopSignal <- true
 						capDevFile.Close()
-					} else {
-						//reprompt for input key?
+						capDevFile = nil
 					}
 				}
 
+				// if nil capFile then init provided device
 				if capDevFile == nil {
 					// open new provided device
 					var err error
@@ -91,55 +92,52 @@ func (cap *BpmCaptureDevice) AttachInputStream() {
 						// this should prob send a dialog box or something
 						continue
 					}
-					// dialog here
-					form := dialog.NewForm("Test Dialog", "This is my confirm message", "dismiss", nil, func(a bool) {}, gui.TempgoFyneApp.FyneWindow)
+
+					// show informational dialog to end-user
+					form := dialog.NewInformation("Set Input Key", "Press Any Key on the Select Device to Monitor", gui.TempgoFyneApp.FyneWindow)
+
 					// set input monitor button
-					// todo should have a time out or something here - revert to nil
 					fmt.Println("Press Button to Monitor")
-					go form.Show()
+					form.Show()
 					for {
 						cap.CurrentCaptureBtn = 255
-						_, eventCode, _ := readEventData(capDevFile)
+						eventType, eventCode, eventValue := readEventData(capDevFile)
 						if cap.CurrentCaptureBtn == 255 && eventCode != 4 {
 							cap.CurrentCaptureBtn = eventCode
 							form.Hide()
-							if monitoring {
-								stopSignal <- true
-							}
 							break
-							//util.ClearTerminal()
-							// enter metronome monitor loop
+						} else if eventType == 0 && eventValue == 0 { // filter key release events
+							//fmt.Printf("Key Release: Code=%d\n", eventCode)
 						} else {
-							fmt.Println("Oh")
+							fmt.Println("Issue determining key event?")
+							fmt.Println(eventType, eventCode, eventValue)
 						}
 					}
 				}
 
 				// spawn new go-thread for monitoring this specific input device
-				go func(stopSig chan bool) {
-					monitoring = true
-					for {
-						// break out of current loop to create a new non-blocking loop
-						if len(stopSig) > 0 {
-							<-stopSig
-							monitoring = false
-							break
-						}
-
-						eventType, eventCode, eventValue := readEventData(capDevFile)
-						if eventCode == cap.CurrentCaptureBtn {
-							// check for key press and release events
-							if eventType == 1 && eventValue == 1 { // key press event
-								// send input timestamp to metronome
-								MainMetronome.inputCompare.inputSignalTime <- time.Now()
-								go cap.printStats()
-
-							} else if eventType == 0 && eventValue == 0 { // key release event
-								//fmt.Printf("Key Release: Code=%d\n", eventCode)
+				if capDevFile != nil {
+					go func() {
+						monitoring = true
+						for {
+							// break out of current loop on sig or nil cap
+							if len(stopSignal) > 0 || capDevFile == nil {
+								<-stopSignal
+								break
+							}
+							// monitor key presses live
+							eventType, eventCode, eventValue := readEventData(capDevFile)
+							if eventCode == cap.CurrentCaptureBtn {
+								// check for key press and release events
+								if eventType == 1 && eventValue == 1 { // key press event
+									// send input timestamp to metronome
+									MainMetronome.inputCompare.inputSignalTime <- time.Now()
+									go cap.printStats()
+								}
 							}
 						}
-					}
-				}(stopSignal)
+					}()
+				}
 			}
 		}
 	}()
@@ -205,7 +203,14 @@ func (cap *BpmCaptureDevice) printStats() {
 	} else {
 		inputOffset = "Start Metronome to Begin"
 	}
-	gui.TempgoStatData.RawInputArrayCV.Set(fmt.Sprintf("%.3f", cov))
+	// format front-end vars
+	covText := fmt.Sprintf("%.3f", cov)
+	if covText == "NaN" {
+		covText = "0"
+	}
+
+	// set front-end vars
+	gui.TempgoStatData.RawInputArrayCV.Set(covText)
 	gui.TempgoStatData.MetronomeInputOffset.Set(inputOffset)
 	gui.TempgoStatData.RawInputArray.Set(gui.IntArrayToString(cap.bpmSamples))
 	gui.TempgoStatData.AverageBPM.Set(fmt.Sprintf("%d BPM", avgBpm))
@@ -226,7 +231,6 @@ func readEventData(capDevFile *os.File) (eventType uint16, eventCode uint16, eve
 	var eventBytes [eventSize]byte
 	_, err := capDevFile.Read(eventBytes[:])
 	if err != nil {
-		fmt.Println("Error reading from input event device:", err)
 		return
 	}
 
@@ -255,8 +259,7 @@ func (cap *BpmCaptureDevice) PromptCMDInputSelect() *os.File {
 	availableDevices, enumErr := util.GetInputDevices()
 
 	if enumErr != nil {
-		fmt.Println("Could Not Enumerate Input Devices.")
-		os.Exit(0)
+		util.LogFatal("Could Not Enumerate Input Devices.")
 	}
 	util.ClearTerminal()
 
@@ -289,17 +292,13 @@ func (cap *BpmCaptureDevice) PromptCMDInputSelect() *os.File {
 			}
 		}
 	} else {
-		fmt.Println("No Input Capture Devices Found, Exiting.")
-		os.Exit(0)
+		util.LogFatal("No Input Capture Devices Found, Exiting.")
 	}
 	// open selected input device
-	fmt.Println(cap.CurrentCaptureDevice)
-	fmt.Println("hello")
-
 	capDevFile, err := os.Open(cap.CurrentCaptureDevice)
 
 	if err != nil {
-		fmt.Println("Error opening input event device:", err)
+		util.Log("Error opening input event device:", err)
 		return nil
 	}
 

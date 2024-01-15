@@ -12,8 +12,6 @@ import (
 	"time"
 )
 
-// this shoud store the last or hmmm need a way to measure all this stuff
-
 type metronome struct {
 	CurrentTempo    int
 	isPlaying       bool
@@ -38,26 +36,22 @@ func init() {
 	// get the current user and exit if root
 	currentUser, err := user.Current()
 	if err != nil {
-		fmt.Println("Error getting current user:", err)
-		os.Exit(1)
+		util.LogFatal("Error getting current user:", err)
+
 	}
 
 	if currentUser.Username == "root" {
-		fmt.Println("Do not run this application as root. Add user to input group if having issues accessing input devices.")
-		os.Exit(1)
+		util.LogFatal("Do not run this application as root. Add user to input group if having issues accessing input devices.")
 	}
 
 	//aplay dep check
 	if !util.CheckCommandExists("aplay") {
-		os.Exit(1)
+		util.LogFatal("Aplay not found on system and is required.")
 	}
 
 	// initalize main metronome
 	MainMetronome.beatsPerMeasure = 4
-	gui.TempgoStatData.MetronomeBeatsPerMeasure.Set(fmt.Sprint(MainMetronome.beatsPerMeasure))
 	MainMetronome.CurrentTempo = 77
-	gui.TempgoStatData.MetronomeCurrentBPM.Set(fmt.Sprintf("%d BPM", MainMetronome.CurrentTempo))
-	gui.TempgoStatData.MetronomeBeatInterval.Set(fmt.Sprintf(" %.0fms", 60_000.0/float32(MainMetronome.CurrentTempo)))
 
 	MainMetronome.isPlaying = false
 	MainMetronome.StopSignal = make(chan bool)
@@ -92,12 +86,9 @@ func (m *metronome) StartMetronome() {
 		case <-gui.TempgoFyneApp.PauseMetronomeChan:
 			m.isPlaying = false
 		case <-m.StopSignal:
-			fmt.Println("Stop Signal Receive. Shutting Down Metronome.")
 			ticker.Stop()
 			break
 		case <-gui.TempgoFyneApp.UpdateMetronomeChan:
-			fmt.Println("Metronome Updated")
-			// need to set the tickrate
 
 			newBeatsPerMeasureStr, beatErr := gui.TempgoStatData.NewBeatsPerMeasureFieldVal.Get()
 			if beatErr != nil {
@@ -113,6 +104,7 @@ func (m *metronome) StartMetronome() {
 			newBeatsPerMeasure, beatConvErr := strconv.Atoi(newBeatsPerMeasureStr)
 			if beatConvErr != nil {
 				// user must enter a valid beat per measure
+				// todo need dialog here for invalid
 			}
 
 			newTempo, tempoConvErr := strconv.Atoi(newTempoStr)
@@ -161,7 +153,6 @@ func (m *metronome) StopMetronome() {
 }
 
 func (m *metronome) SetMetronome(targetTempo int, beatsPerMeasure int) {
-	// todo can I use a channel to just reste the tempo using ticker.reset()
 	m.StopMetronome()
 	m.CurrentTempo = targetTempo
 	m.beatsPerMeasure = beatsPerMeasure
@@ -181,20 +172,20 @@ func playSound(soundData []byte) {
 	cmd.Stderr, nullErr = os.OpenFile("/dev/null", os.O_CREATE, 0755)
 
 	if nullErr != nil {
-		fmt.Println("Could not open dev null")
+		util.Log("Could not open /dev/null")
 	}
 
 	// start both commands
 	err := cmd.Start()
 	if err != nil {
-		fmt.Println("Error starting aplay:", err)
+		util.Log("Error starting aplay:", err)
 		return
 	}
 
 	// write the raw audio data to pipe
 	_, err = pw.Write(soundData)
 	if err != nil {
-		fmt.Println("Error writing to pipe:", err)
+		util.Log("Error writing to pipe:", err)
 		return
 	}
 
@@ -205,15 +196,15 @@ func playSound(soundData []byte) {
 	err = cmd.Wait()
 	if err != nil {
 		// Print the error message.
-		fmt.Println("Error attempting to play sound via aplay:", err)
+		util.Log("Error attempting to play sound via aplay:", err)
 		return
 	}
 }
 
-// todo max error cannot be larger than max interval - add more? via multiples maybe nX
 func (m *metronome) calculateInputDelta(tickRate time.Duration, inputTime time.Time, lastInputTime time.Time) {
 	// calculate deltas between input and metronome. Save results into the metronome struct
 	nextTickTime := (tickRate - inputTime.Sub(lastInputTime)).Milliseconds()
+
 	if nextTickTime > 0 {
 		halfInterval := tickRate.Milliseconds() / 2
 		if nextTickTime >= halfInterval {

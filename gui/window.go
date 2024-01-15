@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"fmt"
 	"image/color"
 	"strconv"
 	"tempgo/util"
@@ -19,7 +18,7 @@ import (
 
 type metronomeGUI struct {
 	fyneTitle           string
-	InputChanTime       chan time.Time // input for GUI tempo button
+	InputChanTime       chan time.Time
 	PlayMetronomeChan   chan bool
 	PauseMetronomeChan  chan bool
 	UpdateMetronomeChan chan bool
@@ -51,8 +50,8 @@ type metronomeStats struct {
 var TempgoFyneApp metronomeGUI
 var TempgoStatData metronomeStats
 
-func init() {
-	//init tempgo window elements
+func InitWindowReources(qnoteIcon *fyne.StaticResource, playIcon *fyne.StaticResource, pauseIcon *fyne.StaticResource) {
+	// init tempgo window elements
 	TempgoFyneApp.fyneTitle = "Tempgo"
 	TempgoFyneApp.InputChanTime = make(chan time.Time)
 	TempgoFyneApp.PlayMetronomeChan = make(chan bool)
@@ -64,12 +63,7 @@ func init() {
 
 	// create taskbar icon
 	if desk, ok := TempgoFyneApp.fyneApp.(desktop.App); ok {
-		trayIcon, err := fyne.LoadResourceFromPath("./resources/quarter_note.png")
-		if err != nil {
-			fmt.Println("Could not load tray icon")
-		} else {
-			TempgoFyneApp.fyneApp.SetIcon(trayIcon)
-		}
+		TempgoFyneApp.fyneApp.SetIcon(qnoteIcon)
 
 		m := fyne.NewMenu("Tempgo",
 			fyne.NewMenuItem("Show", func() {
@@ -82,10 +76,9 @@ func init() {
 		TempgoFyneApp.FyneWindow.Hide()
 	})
 
-	//todo need to query capture devices to populate this list and then add a selection event
 	availableInputDevs, err := util.GetInputDevices()
 	if err != nil {
-		fmt.Println("Could Not Query Input Devices.")
+		util.Log("Could Not Query Input Devices.")
 	}
 
 	inputDevSelect := widget.NewSelect(availableInputDevs, func(value string) {
@@ -93,23 +86,8 @@ func init() {
 	})
 
 	// allocate button resources
-	btnIcon, err := fyne.LoadResourceFromPath("./resources/quarter_note.png")
-	if err != nil {
-		fmt.Println("Unable to load button image resource.")
-	}
-
-	playIcon, err := fyne.LoadResourceFromPath("./resources/play_icon.png")
-	if err != nil {
-		fmt.Println("Unable to load button image resource.")
-	}
-
-	pauseIcon, err := fyne.LoadResourceFromPath("./resources/pause_icon.png")
-	if err != nil {
-		fmt.Println("Unable to load button image resource.")
-	}
-
 	// init gui buttons
-	TempgoFyneApp.tempoInputBtn = widget.NewButtonWithIcon("", btnIcon, func() {
+	TempgoFyneApp.tempoInputBtn = widget.NewButtonWithIcon("", qnoteIcon, func() {
 		TempgoFyneApp.InputChanTime <- time.Now()
 	})
 
@@ -217,12 +195,10 @@ func IntArrayToString(intArray [10]int) string {
 	// Concatenate the string representations
 	result := "["
 	for index, str := range strArray {
-
 		result += str
 		if index != len(strArray)-1 {
 			result += ", "
 		}
-
 	}
 	result = result + "]"
 
