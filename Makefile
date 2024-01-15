@@ -5,7 +5,7 @@ GOCLEAN = $(GOCMD) clean
 GOTEST = $(GOCMD) test
 GOGET = $(GOCMD) get
 RESOURCES = "resources"
-BINARY_NAME = monalisa
+BINARY_NAME = tempgo
 MAIN_PATH = .
 
 all: test build
