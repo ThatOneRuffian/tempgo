@@ -97,7 +97,6 @@ func (cap *BpmCaptureDevice) attachInputStream() {
 					form := dialog.NewInformation("Set Input Key", "Press Any Key on the Select Device to Monitor", gui.TempgoFyneApp.FyneWindow)
 
 					// set input monitor button
-					fmt.Println("Press Button to Monitor")
 					form.Show()
 					for {
 						cap.CurrentCaptureBtn = 255
@@ -113,30 +112,7 @@ func (cap *BpmCaptureDevice) attachInputStream() {
 							fmt.Println(eventType, eventCode, eventValue)
 						}
 					}
-				}
-
-				// spawn new go-thread for monitoring this specific input device
-				if capDevFile != nil {
-					go func() {
-						monitoring = true
-						for {
-							// break out of current loop on sig or nil cap
-							if len(stopSignal) > 0 || capDevFile == nil {
-								<-stopSignal
-								break
-							}
-							// monitor key presses live
-							eventType, eventCode, eventValue := readEventData(capDevFile)
-							if eventCode == cap.CurrentCaptureBtn {
-								// check for key press and release events
-								if eventType == 1 && eventValue == 1 { // key press event
-									// send input timestamp to metronome
-									MainMetronome.inputCompare.inputSignalTime <- time.Now()
-									go cap.printStats()
-								}
-							}
-						}
-					}()
+					go cap.initInputStream(capDevFile, stopSignal, &monitoring)
 				}
 			}
 		}
@@ -186,7 +162,7 @@ func (cap *BpmCaptureDevice) printStats() {
 	fmt.Printf("Detected Interval: %dms\n", detectedInterval)
 	fmt.Printf("Last Detected BPM: %d\n", bpm)
 	fmt.Printf("Detected Beat Offset: %s%dms\n", inputSign, int(precision))
-	fmt.Printf("Overall Rating (Coefficient of Variation): +/-%.1f BPM\n", cov)
+	fmt.Printf("Overall Rating (Coefficient of Variation): +/-%.1f \n", cov)
 	fmt.Printf("Interval Rating: %s\n", currentRawRating)
 
 	// print metronome compare stats
@@ -254,8 +230,36 @@ func calculateStandardDeviation(data [10]int, mean int) float64 {
 	return math.Sqrt(variance)
 }
 
-func (cap *BpmCaptureDevice) PromptCMDInputSelect() *os.File {
+func (cap *BpmCaptureDevice) initInputStream(capDevFile *os.File, stopSignal chan bool, monitoring *bool) {
+	// spawn new go-thread for monitoring this specific input device
+	if capDevFile != nil {
+		go func() {
+			*monitoring = true
+			for {
+				// break out of current loop on sig or nil cap
+				if len(stopSignal) > 0 || capDevFile == nil {
+					<-stopSignal
+					break
+				}
+				// monitor key presses live
+				eventType, eventCode, eventValue := readEventData(capDevFile)
+				if eventCode == cap.CurrentCaptureBtn {
+					// check for key press and release events
+					if eventType == 1 && eventValue == 1 { // key press event
+						// send input timestamp to metronome
+						MainMetronome.inputCompare.inputSignalTime <- time.Now()
+						go cap.printStats()
+					}
+				}
+			}
+		}()
+	}
+}
+
+func (cap *BpmCaptureDevice) PromptCMDInputSelect() {
+	var monitoring bool
 	var selectedCaptureIndex int = -1
+	stopSignal := make(chan bool, 1)
 	availableDevices, enumErr := util.GetInputDevices()
 
 	if enumErr != nil {
@@ -285,6 +289,7 @@ func (cap *BpmCaptureDevice) PromptCMDInputSelect() *os.File {
 			if selectedCaptureIndex >= 0 && selectedCaptureIndex < len(availableDevices) {
 				// set capture device
 				cap.CurrentCaptureDevice = availableDevices[selectedCaptureIndex]
+				util.ClearTerminal()
 				break
 			} else {
 				util.ClearTerminal()
@@ -299,8 +304,31 @@ func (cap *BpmCaptureDevice) PromptCMDInputSelect() *os.File {
 
 	if err != nil {
 		util.Log("Error opening input event device:", err)
-		return nil
 	}
 
-	return capDevFile
+	// set input monitor button
+	fmt.Println("Press Button to Monitor, Multiple Times")
+	time.Sleep(1 * time.Second)
+	runCount := 0
+
+	for {
+		cap.CurrentCaptureBtn = 255
+		eventType, eventCode, eventValue := readEventData(capDevFile)
+		if cap.CurrentCaptureBtn == 255 && eventCode != 4 && eventType != 0 && eventValue != 0 {
+			runCount += 1
+			if runCount >= 4 {
+				cap.CurrentCaptureBtn = eventCode
+				util.ClearTerminal()
+				break
+			}
+		} else if eventType == 0 && eventValue == 0 { // filter key release events
+			//fmt.Printf("Key Release: Code=%d\n", eventCode)
+		}
+	}
+	go cap.initInputStream(capDevFile, stopSignal, &monitoring)
+}
+
+func (cap *BpmCaptureDevice) PlayCMDMetronome(newBpm int, newCount int) {
+	MainMetronome.SetMetronome(newBpm, newCount)
+	MainMetronome.isPlaying = true
 }

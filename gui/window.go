@@ -184,15 +184,14 @@ func InitWindowReources(qnoteIcon *fyne.StaticResource, playIcon *fyne.StaticRes
 }
 
 func IntArrayToString(intArray [10]int) string {
-	// Create a slice of strings to store the string representations of integers
 	strArray := make([]string, len(intArray))
 
-	// Convert each integer to its string representation
+	// integer to string
 	for i, v := range intArray {
 		strArray[i] = strconv.Itoa(v)
 	}
 
-	// Concatenate the string representations
+	// create string representation of list
 	result := "["
 	for index, str := range strArray {
 		result += str
