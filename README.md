@@ -16,3 +16,7 @@ Features:
 - Metronome-free input stats
 - Select from various input devices
 - Tray icon / background capture
+- ARM64 Linux build
+  
+  ![image](https://github.com/ThatOneRuffian/tempgo/assets/13604240/97b72c94-a77f-4648-995e-5db8c5b9b878)
+
