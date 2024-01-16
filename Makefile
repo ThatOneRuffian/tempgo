@@ -12,7 +12,7 @@ all: test build
 
 build:
 	fyne bundle -o bundled.go $(RESOURCES)
-	CGO_ENABLED=1 $(GOBUILD) -o $(BINARY_NAME) $(MAIN_PATH)
+	CGO_ENABLED=1 $(GOBUILD) -buildmode=pie -v  -o $(BINARY_NAME) $(MAIN_PATH)
 
 build-arm:
 	fyne bundle -o bundled.go $(RESOURCES)
