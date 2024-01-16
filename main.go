@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	gui.InitWindowReources(resourceQuarternotePng, resourcePlayiconPng, resourcePauseiconPng)
+	gui.InitWindowReources(resourceTempgologoPng, resourceQuarternotePng, resourcePlayiconPng, resourcePauseiconPng)
 }
 
 func main() {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 )
 
 func ClearTerminal() {
@@ -32,4 +33,25 @@ func GetInputDevices() ([]string, error) {
 	}
 
 	return devicePaths, nil
+}
+
+func IntArrayToString(intArray [10]int) string {
+	strArray := make([]string, len(intArray))
+
+	// integer to string
+	for i, v := range intArray {
+		strArray[i] = strconv.Itoa(v)
+	}
+
+	// create string representation of list
+	result := "["
+	for index, str := range strArray {
+		result += str
+		if index != len(strArray)-1 {
+			result += ", "
+		}
+	}
+	result = result + "]"
+
+	return result
 }

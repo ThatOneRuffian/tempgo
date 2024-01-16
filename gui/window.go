@@ -2,7 +2,6 @@ package gui
 
 import (
 	"image/color"
-	"strconv"
 	"tempgo/util"
 	"time"
 
@@ -50,7 +49,7 @@ type metronomeStats struct {
 var TempgoFyneApp metronomeGUI
 var TempgoStatData metronomeStats
 
-func InitWindowReources(qnoteIcon *fyne.StaticResource, playIcon *fyne.StaticResource, pauseIcon *fyne.StaticResource) {
+func InitWindowReources(mainIcon *fyne.StaticResource, qnoteIcon *fyne.StaticResource, playIcon *fyne.StaticResource, pauseIcon *fyne.StaticResource) {
 	// init tempgo window elements
 	TempgoFyneApp.fyneTitle = "Tempgo"
 	TempgoFyneApp.InputChanTime = make(chan time.Time)
@@ -60,6 +59,7 @@ func InitWindowReources(qnoteIcon *fyne.StaticResource, playIcon *fyne.StaticRes
 	TempgoFyneApp.UpdateInputDevChan = make(chan string)
 	TempgoFyneApp.fyneApp = app.NewWithID("tempgo-v0.1.0")
 	TempgoFyneApp.FyneWindow = TempgoFyneApp.fyneApp.NewWindow(TempgoFyneApp.fyneTitle)
+	TempgoFyneApp.FyneWindow.SetIcon(mainIcon)
 
 	// create taskbar icon
 	if desk, ok := TempgoFyneApp.fyneApp.(desktop.App); ok {
@@ -181,25 +181,4 @@ func InitWindowReources(qnoteIcon *fyne.StaticResource, playIcon *fyne.StaticRes
 	TempgoFyneApp.FyneWindow.SetContent(windowContainer)
 	TempgoFyneApp.FyneWindow.Resize(fyne.NewSize(100, 100))
 
-}
-
-func IntArrayToString(intArray [10]int) string {
-	strArray := make([]string, len(intArray))
-
-	// integer to string
-	for i, v := range intArray {
-		strArray[i] = strconv.Itoa(v)
-	}
-
-	// create string representation of list
-	result := "["
-	for index, str := range strArray {
-		result += str
-		if index != len(strArray)-1 {
-			result += ", "
-		}
-	}
-	result = result + "]"
-
-	return result
 }

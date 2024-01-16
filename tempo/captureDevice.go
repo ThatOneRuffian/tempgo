@@ -188,7 +188,7 @@ func (cap *BpmCaptureDevice) printStats() {
 	// set front-end vars
 	gui.TempgoStatData.RawInputArrayCV.Set(covText)
 	gui.TempgoStatData.MetronomeInputOffset.Set(inputOffset)
-	gui.TempgoStatData.RawInputArray.Set(gui.IntArrayToString(cap.bpmSamples))
+	gui.TempgoStatData.RawInputArray.Set(util.IntArrayToString(cap.bpmSamples))
 	gui.TempgoStatData.AverageBPM.Set(fmt.Sprintf("%d BPM", avgBpm))
 	gui.TempgoStatData.DetectedInterval.Set(fmt.Sprintf("%sms", fmt.Sprint(detectedInterval)))
 	gui.TempgoStatData.MetronomeCurrentBPM.Set(fmt.Sprint(MainMetronome.CurrentTempo))
