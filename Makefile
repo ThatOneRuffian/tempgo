@@ -16,7 +16,7 @@ build:
 
 build-arm:
 	fyne bundle -o bundled.go $(RESOURCES)
-	CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 $(GOBUILD) -o $(BINARY_NAME)_arm64 -v $(MAIN_PATH)
+	CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 $(GOBUILD) -v -buildmode=pie -o $(BINARY_NAME)_linux_arm64 $(MAIN_PATH)
 
 test:
 	$(GOTEST) -v ./...
