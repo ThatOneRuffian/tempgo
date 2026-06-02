@@ -2,6 +2,8 @@
 # tempgo
 A tempo utility written in golang to help with reverse engineering tempos and practicing a set tempo. Written with fyne as the GUI component. Now know whether you're rushing or dragging and by how much.
 
+While commonly used for music practice, rhythm and tempo are foundational to many disciplines — sports, martial arts, dance, speech, and more. This tool is just as useful outside of music.
+
 In order to gain direct access to input devices, add your user to the input group (sudo usermod -aG input username) and restart the user session to apply the changes. Do not run this program as root. Alsa, the required sound component, will not allow root for security reasons.
 
 Zeros in dataset are ignored when calculating stats.
