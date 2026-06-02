@@ -18,5 +18,14 @@ Features:
 - Tray icon / background capture
 - ARM64 Linux build
   
-  ![image](https://github.com/ThatOneRuffian/tempgo/assets/13604240/97b72c94-a77f-4648-995e-5db8c5b9b878)
+  
+![image](https://github.com/ThatOneRuffian/tempgo/assets/13604240/97b72c94-a77f-4648-995e-5db8c5b9b878)
+
+## Common Game Tempos (4/4 time)
+
+Reference tempos for common games — useful for setting up practice targets:
+
+- **Mirror's Edge** — 84 BPM
+- **Lies of P** — 77 BPM
+- **Killing Floor 2** — 85 BPM
 
